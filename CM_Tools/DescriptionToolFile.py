@@ -8,18 +8,18 @@ class DescriptionToolClass:
     def __init__(self):
         print "Initializing description tool"
         self.ModelName = ""
-        self.ProjectDir = ""
+        self.projectDir = ""
     
     def CreateDescription(self,*args):
         #Get the model name and the project directory
         self.ModelName = cmds.getAttr("CMSettings.ModelName")
-        self.ProjectDir = cmds.getAttr("CMSettings.ProjectPath")
+        self.projectDir = cmds.getAttr("CMSettings.ProjectPath")
         
         #Get the documents directory and the process
-        if os.path.exists(os.path.expanduser('~/maya/Turbosquid/CheckMate Tools For Maya/CM_Tools/') + "/Imaging/GetImageSize.exe"):
-            ImageSizeProcess = os.path.expanduser('~/maya/Turbosquid/CheckMate Tools For Maya/CM_Tools/') + "/Imaging/GetImageSize.exe"
-        elif os.path.exists(os.path.expanduser('~/maya/Turbosquid/CheckMate Tools For Maya/CM_Tools/') + "/Imaging/GetImageSize"):
-            ImageSizeProcess = os.path.expanduser('~/maya/Turbosquid/CheckMate Tools For Maya/CM_Tools/') + "/Imaging/GetImageSize"
+        if os.path.exists(os.environ['CM_TOOLS'] + "/Imaging/GetImageSize.exe"):
+            ImageSizeProcess = os.environ['CM_TOOLS'] + "/Imaging/GetImageSize.exe"
+        elif os.path.exists(os.environ['CM_TOOLS'] + "/Imaging/GetImageSize"):
+            ImageSizeProcess = os.environ['CM_TOOLS'] + "/Imaging/GetImageSize"
         
         import ntpath
         
@@ -67,7 +67,7 @@ class DescriptionToolClass:
                 src = Textures[i]
                 ext = os.path.splitext(src)[1]
                 if ext == ".psd":
-                    cmds.psdExport( psdFileName = src, outFileName = self.ProjectDir + "/Temp/" + self.ModelName + "_PSD.jpg", format = "jpg" )
+                    cmds.psdExport( psdFileName = src, outFileName = self.projectDir + "/Temp/" + self.ModelName + "_PSD.jpg", format = "jpg" )
                     w, h = subprocess.Popen([ImageSizeProcess, src],creationflags=subprocess.SW_HIDE, shell=True, stdout=subprocess.PIPE).communicate()[0].split(" ")
                     Output = Output + " Texture:" + ntpath.basename(src) + ", Size:" + str(w) + "x" + str(h) + "\r\n"
                 else:
@@ -97,8 +97,8 @@ class DescriptionToolClass:
         
         
         DesText = ""
-        if os.path.exists(self.ProjectDir+ "/" + self.ModelName + "_Description.txt"):
-            File = open(self.ProjectDir+ "/" + self.ModelName + "_Description.txt","r")
+        if os.path.exists(self.projectDir+ "/" + self.ModelName + "_Description.txt"):
+            File = open(self.projectDir+ "/" + self.ModelName + "_Description.txt","r")
             
             l = 0 
             for line in File:
@@ -127,7 +127,7 @@ class DescriptionToolClass:
                          )
         
         def SaveButton(*args):
-            File = open(self.ProjectDir+ "/" + self.ModelName + "_Description.txt", "w")
+            File = open(self.projectDir+ "/" + self.ModelName + "_Description.txt", "w")
             File.write( cmds.scrollField("ScrollFieldStats", query = True, text = True) + "\r\n" + cmds.scrollField("ScrollFieldDes", query = True, text = True))
             File.close()
             cmds.text("DesSaved", edit = True, label = "    File saved")

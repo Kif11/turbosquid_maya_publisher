@@ -105,9 +105,9 @@ class SubdivisionTextClass:
         for i in range(0,len(subLayers)):
             cmds.editRenderLayerGlobals( currentRenderLayer = subLayers[i])
             if SubdivisionTextClass.subColor == "w":
-                cmds.setAttr("CMForegroundPlane.imageName", os.path.expanduser('~/maya/Turbosquid/CheckMate Tools For Maya/CM_Tools/') + "Imaging/Txt_-_Subdivision_Lv_" + str(i) + "-w.png", type = "string")
+                cmds.setAttr("CMForegroundPlane.imageName", os.environ['CM_TOOLS'] + "Imaging/Txt_-_Subdivision_Lv_" + str(i) + "-w.png", type = "string")
             else:
-                cmds.setAttr("CMForegroundPlane.imageName", os.path.expanduser('~/maya/Turbosquid/CheckMate Tools For Maya/CM_Tools/') + "Imaging/Txt_-_Subdivision_Lv_" + str(i) + "-b.png", type = "string")
+                cmds.setAttr("CMForegroundPlane.imageName", os.environ['CM_TOOLS'] + "Imaging/Txt_-_Subdivision_Lv_" + str(i) + "-b.png", type = "string")
                 
                 
         cmds.editRenderLayerGlobals( currentRenderLayer = "defaultRenderLayer" )

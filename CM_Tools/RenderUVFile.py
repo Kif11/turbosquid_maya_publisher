@@ -45,10 +45,10 @@ class RenderUVClass:
             if first != -1:
                 i = i[:first] + i[last+1:]
             
-            if os.path.exists(os.path.expanduser('~/maya/Turbosquid/CheckMate Tools For Maya/CM_Tools/') + "/Imaging/ResizeForUVs.exe"):
-                program = os.path.expanduser('~/maya/Turbosquid/CheckMate Tools For Maya/CM_Tools/') + "/Imaging/ResizeForUVs.exe"
-            elif os.path.exists(os.path.expanduser('~/maya/Turbosquid/CheckMate Tools For Maya/CM_Tools/') + "/Imaging/ResizeForUVs"):
-                program =os.path.exists(os.path.expanduser('~/maya/Turbosquid/CheckMate Tools For Maya/CM_Tools/') + "/Imaging/ResizeForUVs")
+            if os.path.exists(os.environ['CM_TOOLS'] + "/Imaging/ResizeForUVs.exe"):
+                program = os.environ['CM_TOOLS'] + "/Imaging/ResizeForUVs.exe"
+            elif os.path.exists(os.environ['CM_TOOLS'] + "/Imaging/ResizeForUVs"):
+                program =os.path.exists(os.environ['CM_TOOLS'] + "/Imaging/ResizeForUVs")
                 
             argument1 = texture
             argument2 = cmds.getAttr("CMSettings.ProjectPath") + "/temp/" + cmds.getAttr("CMSettings.ModelName") + "_TempTex.png"
@@ -60,10 +60,10 @@ class RenderUVClass:
             cmds.uvSnapshot(antiAliased=True, fileFormat = "png", name = uvTemplate, overwrite = True, xResolution = int(w), yResolution = int(h)) 
             
             
-            if os.path.exists(os.path.expanduser('~/maya/Turbosquid/CheckMate Tools For Maya/CM_Tools/') + "/Imaging/OverlayImages.exe"):
-                program = os.path.expanduser('~/maya/Turbosquid/CheckMate Tools For Maya/CM_Tools/') + "/Imaging/OverlayImages.exe"
-            elif os.path.exists(os.path.expanduser('~/maya/Turbosquid/CheckMate Tools For Maya/CM_Tools/') + "/Imaging/OverlayImages"):
-                program = os.path.expanduser('~/maya/Turbosquid/CheckMate Tools For Maya/CM_Tools/') + "/Imaging/OverlayImages"
+            if os.path.exists(os.environ['CM_TOOLS'] + "/Imaging/OverlayImages.exe"):
+                program = os.environ['CM_TOOLS'] + "/Imaging/OverlayImages.exe"
+            elif os.path.exists(os.environ['CM_TOOLS'] + "/Imaging/OverlayImages"):
+                program = os.environ['CM_TOOLS'] + "/Imaging/OverlayImages"
             
             argument1 = cmds.getAttr("CMSettings.ProjectPath") + "/temp/" + cmds.getAttr("CMSettings.ModelName") + "_TempTex.png"
             argument2 = uvTemplate

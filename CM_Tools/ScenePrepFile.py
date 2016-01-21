@@ -1,183 +1,193 @@
-import maya.cmds as cmds
 import sys
+import re
+import logger
+import maya.cmds as cmds
+import maya.mel as mel
 
+reload(logger)
 
-class ScenePrepClass:
-    #The cursel variable is used to hold the model/selected meshes, it is assigned only once in the ModelSelection
-    Cursel = []
-    #GroupName is used to hold the model name
-    GroupName = ""
-    #This is a bool to check if the model was already grouped at the time of prep
-    alreadyGrouped = False
-    #This is to hold the project directory
-    OutputDir = ""
-    
-    def __init__(self):
-        print "Initializing scene prep class"
-        
-        if (cmds.window("GroupWindow", exists=True)):
-                cmds.deleteUI("GroupWindow")
-    
-    def InitializeScene(self):
-        print "Initializing scene"
-        #Check to see if the scene is empty
-        if self.EmptyScene() == 0:
+from logger import Logger
+
+log = Logger()
+
+CM_SETTINGS = 'CMSettings'
+
+class ScenePrep:
+
+    def __init__(self, output_dir=''):
+
+        log.info('Initializing scene prep class')
+
+        # Theself.curselvariable is used to hold the model/selected meshes,
+        # it is assigned only once in the model_selection
+        self.cursel= []
+        # Hold the model name
+        self.group_name = ''
+        # This is a bool to check if the model was already grouped at the time of prep
+        self.already_grouped = False
+        # This is to hold the project directory
+        self.output_dir = output_dir
+
+        if (cmds.window('GroupWindow', exists=True)):
+                cmds.deleteUI('GroupWindow')
+
+    def initialize_scene(self):
+
+        log.info('Initializing scene')
+
+        # Check to see if the scene is empty
+        if self.empty_scene() == 0:
             return 0
-        
-        #Check to see if an object exists with the same name
-        if self.SameName() == 0:
+
+        # Check to see if an object exists with the same name
+        # if self.same_name() == 0:
+        #     return 0
+
+        # Get selection or use all scene geometry
+        self.model_selection()
+
+        # Get name if empty exit
+        if self.get_group_name() == 0:
             return 0
-        
-        #Get selection or use all scene geometry
-        self.ModelSelection()
-             
-        #Get name if empty exit
-        if self.GetGroupName() == 0:
-            return 0
-        
-        #Delete or group unselected objects
-        self.ManageUnselectedObjects()
-        
-        #Create a settings node if it doesn't exist
-        self.CreateSettingsNode()
-                
-    def PrepScene(self):
-        
-        #Delete animation
-        self.DeleteAnimation()
-        
-        #Group Objects with the retrieved name
-        self.GroupObjects()
-        
-        #Group user lights for easy management
-        self.GroupUserLights()
-        
-        #For internal use makes the CM cameras undeleteable
-        self.ConvertCamerasToStartUp()
-        
-        #Delete empty groups
-        self.DeleteEmptyGroups()
-        
-        #Center the main model
-        self.Center(ScenePrepClass.GroupName)
-        
-        #Delete empty display layers
-        self.DeleteEmptyLayers()
-        
-        #Create a new display layer for the model
-        self.CreateDisplayLayers()    
-        
-        #Set the resolution gate in all active viewports
-        self.SetResGate()
-        
-        #Apply smoothing to the main object
-        self.ApplySmooth()
-        
-        #Create the rotation animation for the turntable
-        self.CreateAnimation()
-        
-        print "Successfully preped scene"
-        #Returns 1 on successful execution
-        return 1
-        
-    def EmptyScene(self):
-        print "Checking for empty scene"
+
+        # Delete or group unselected objects
+        self.manage_unselected()
+
+        # Create a settings node if it doesn't exist
+        self.create_settings_node()
+
+    def prep_scene(self):
+
+        # Group Objects with the retrieved name
+        self.group_objects()
+
+        # Group user lights for easy management
+        # self.GroupUserLights()
+
+        # For internal use makes the CM cameras undeleteable
+        self.convert_cameras_to_startup()
+
+        # Delete empty groups
+        self.delete_empty_groups()
+
+        # Center the main model
+        # self.Center(self.group_name)
+
+        # Delete empty display layers
+        self.delete_empty_layers()
+
+        # Create a new display layer for the model
+        self.create_display_layers()
+
+        # Set the resolution gate in all active viewports
+        self.set_res_gate()
+
+        # Apply smoothing to the main object
+        # self.ApplySmooth()
+
+        # Create the rotation animation for the turntable
+        # self.CreateAnimation()
+
+        log.info('Successfully preped scene')
+
+    def empty_scene(self):
+        log.info('Checking for empty scene')
         if cmds.ls(g = True) == []:
-            cmds.confirmDialog(m = "Scene contains no usable geometry")
-            return 0
-    
-    def SameName(self):
-        import re
-        cmds.textField("NameTextField",edit = True, text = re.sub('[^0-9a-zA-Z_]+', '_', cmds.textField("NameTextField",query = True, text = True)))
-        if cmds.objExists(cmds.textField("NameTextField",query = True, text = True)):
-            cmds.confirmDialog(m = "A node exists with the same name")
-            return 0
-    
-    def ModelSelection(self):
-        #####Model selection#######
-        if cmds.checkBox("PrepCheckBox", query = True, value = True):
-            #Get selected without the exception objects
-            self.ExceptionObjects()
-            ScenePrepClass.Cursel = cmds.ls(sl = True)
+            cmds.confirmDialog(m = 'Scene contains no usable geometry')
+
+    def same_name(self):
+        cmds.textField('NameTextField', edit=True, text=re.sub('[^0-9a-zA-Z_]+', '_',
+                        cmds.textField('NameTextField', query=True, text=True)))
+
+        if cmds.objExists(cmds.textField('NameTextField', query=True, text=True)):
+            cmds.confirmDialog(m='A node exists with the same name')
+
+    def model_selection(self):
+        # Model selection
+        if cmds.checkBox("PrepCheckBox", query=True, value=True):
+        # TODO(Kirill): Make to work with cli and ui
+            # Get selected without the exception objects
+            self.exception_objects()
+            self.cursel = cmds.ls(sl=True)
         else:
-            #Get all without the exception objects
-            cmds.select(ado = True, hi = True)
-            self.ExceptionObjects()
-            ScenePrepClass.Cursel = cmds.ls(sl = True)
-    
-    def GetGroupName(self):
-        #Check to see if the name is saved with the file
-        if cmds.objExists("CMSettings"):
-            ScenePrepClass.GroupName = cmds.getAttr("CMSettings.ModelName")
-            if cmds.objExists(ScenePrepClass.GroupName):
-                print "Group name from save"
+            # Get all without the exception objects
+            cmds.select(ado=True, hi=True)
+            self.exception_objects()
+            self.cursel = cmds.ls(sl=True)
+
+    def get_group_name(self):
+        # Check to see if the name is saved with the file
+        if cmds.objExists('CMSettings'):
+            self.group_name = cmds.getAttr('CMSettings.ModelName')
+            if cmds.objExists(self.group_name):
+                log.info('Group name from save')
                 return 1
-        
-        #Check to see if the model is already grouped then use that name#
-        if self.SelectedObjectsAreGrouped() != "":
-            if cmds.textField("NameTextField",query = True, text = True) != "":
-                #Rename the group if a name has been provided
-                cmds.rename(ScenePrepClass.GroupName, cmds.textField("NameTextField",query = True, text = True))
-                #Replace the name in cursel
-                for x in range(len(ScenePrepClass.Cursel)):
-                    if ScenePrepClass.Cursel[x] == ScenePrepClass.GroupName:
-                        ScenePrepClass.Cursel[x] = cmds.textField("NameTextField",query = True, text = True)
-                #
-                ScenePrepClass.GroupName = cmds.textField("NameTextField",query = True, text = True)
-            print "Group name from model"
+
+        # Check to see if the model is already grouped then use that name
+        if self.selected_objects_grouped() != '':
+            if cmds.textField('NameTextField',query=True, text=True) != '':
+                # Rename the group if a name has been provided
+                cmds.rename(self.group_name, cmds.textField('NameTextField',query=True, text=True))
+                # Replace the name in cursel
+                for x in range(len(self.cursel)):
+                    if self.cursel[x] == self.group_name:
+                        self.cursel[x] = cmds.textField('NameTextField',query=True, text=True)
+                self.group_name = cmds.textField('NameTextField',query=True, text=True)
+            log.info('Group name from model')
             return 1
-        
-        #otherwise check the textfield
-        if cmds.textField("NameTextField",query = True, text = True) != "":
-            ScenePrepClass.GroupName = cmds.textField("NameTextField",query = True, text = True)
-            print "Group name from field"
-        
-        if ScenePrepClass.GroupName == "":
-            cmds.confirmDialog(m = "Please enter a name for the model")
+
+        # Otherwise check the textfield
+        if cmds.textField("NameTextField",query=True, text=True) != "":
+            self.group_name = cmds.textField("NameTextField",query=True, text=True)
+            log.info("Group name from field")
+
+        if self.group_name == "":
+            cmds.confirmDialog(m="Please enter a name for the model")
             return 0
-    
-    def CreateSettingsNode(self):
-        if not cmds.objExists("CMSettings"):
-            cmds.scriptNode(n = "CMSettings")
-            cmds.select("CMSettings")
-            cmds.addAttr(longName='ModelName', dt ='string')
-            cmds.setAttr("CMSettings.ModelName", ScenePrepClass.GroupName,type = "string")
-            cmds.addAttr(longName='ProjectPath', dt ='string')
-            cmds.addAttr(longName='CurrentRig', dt ='string')
-            cmds.setAttr("CMSettings.CurrentRig", "None", type = "string")
-            cmds.select(all = True, deselect = True)
-    
-    def ManageUnselectedObjects(self):
-        cmds.select(all = True)
-        self.ExceptionObjects()
-        UnSelectedObjects = cmds.ls(sl = True)
+
+    def create_settings_node(self):
+
+        if not cmds.objExists(CM_SETTINGS):
+            cmds.scriptNode(n = CM_SETTINGS)
+            cmds.select(CM_SETTINGS)
+            cmds.addAttr(longName='ModelName', dt='string')
+            cmds.setAttr(CM_SETTINGS + '.ModelName', self.group_name, type = 'string')
+            cmds.addAttr(longName='ProjectPath', dt='string')
+            cmds.addAttr(longName='CurrentRig', dt='string')
+            cmds.setAttr('CMSettings.CurrentRig', 'None', type = 'string')
+            cmds.select(all=True, deselect=True)
+
+    def manage_unselected(self):
+        cmds.select(all=True)
+        self.exception_objects()
+        unselected = cmds.ls(sl=True)
         AllSceneObjects = []
         Selection = []
-        def GetBaseObjects(obj, Input):
+        def get_base_objects(obj, Input):
             if cmds.nodeType(obj)== "mesh":
-                FullPath = obj.split("|")
-                if len(FullPath) >1:
-                    del FullPath[-1]
-                
-                Input.append( "|".join(FullPath))
+                full_path = obj.split("|")
+                if len(full_path) >1:
+                    del full_path[-1]
+
+                Input.append( "|".join(full_path))
             else:
                 Children = cmds.listRelatives(obj, f =True)
                 if Children is not None:
                     for c in Children:
                         if c is not None:
-                            GetBaseObjects(c, Input)
-        
-        for s in UnSelectedObjects:        
-            GetBaseObjects(s, AllSceneObjects)
-        for s in ScenePrepClass.Cursel:        
-            GetBaseObjects(s, Selection)
-        
+                            get_base_objects(c, Input)
+
+        for s in unselected:
+            get_base_objects(s, AllSceneObjects)
+        for s in self.cursel:
+            get_base_objects(s, Selection)
+
         for i in Selection:
             try:
                 AllSceneObjects.remove(i)
             except:
                 pass
-         
+
         if AllSceneObjects == []:
             return 0
         else:
@@ -189,11 +199,11 @@ class ScenePrepClass:
                     except:
                         pass
                 print "Unselected objects have been deleted"
-                
-            elif check == "Group":    
+
+            elif check == "Group":
                 if not cmds.objExists("CMBackground"):
-                    cmds.group( em=True, name = "CMBackground" )    
-                    
+                    cmds.group( em=True, name = "CMBackground" )
+
                 for a in AllSceneObjects:
                     try:
                         cmds.parent(a, "CMBackground", relative=True)
@@ -201,85 +211,85 @@ class ScenePrepClass:
                         pass
                 print "Unselected objects have been grouped and layered"
 
-    def SelectedObjectsAreGrouped(self):
-        ObjParents = []
-        CurrentParent = None
-        SameParentFlag = False
-        FixedParent = ""
-        FullPath =""
-        for c in ScenePrepClass.Cursel:
+    def selected_objects_grouped(self):
+        obj_parents = []
+        current_parent = None
+        same_parent_flag = False
+        fixed_parent = ""
+        full_path = ""
+        for c in self.cursel:
             if cmds.listRelatives(c, p = True) == None:### Has no parents
                 if cmds.nodeType(cmds.listRelatives(c, f = True)) == "mesh": ### is an object
-                    ScenePrepClass.alreadyGrouped = False
+                    self.already_grouped = False
                     return ""
                 else:### is a group
                     for i in cmds.listRelatives(c, f = True, ad = True):
                         if cmds.nodeType(i) == "mesh":
-                            ObjParents.append(cmds.listRelatives(c, f =True))
+                            obj_parents.append(cmds.listRelatives(c, f =True))
                             break
             else:
-                ObjParents.append(cmds.listRelatives(c, f =True))
-        for p in ObjParents:
+                obj_parents.append(cmds.listRelatives(c, f =True))
+        for p in obj_parents:
             if p is not None:
-                FixedParent = "".join(ObjParents[0])
-                FixedParentList = FixedParent.split("|")
-                FixedParent = FixedParentList[1]
-                FullPath = "".join(p)
-                FullPathList = FullPath.split("|")
-                CurrentParent = FullPathList[1]
-                if (CurrentParent == FixedParent):
-                    SameParentFlag = True
+                fixed_parent = "".join(obj_parents[0])
+                fixed_parentList = fixed_parent.split("|")
+                fixed_parent = fixed_parentList[1]
+                full_path = "".join(p)
+                full_pathList = full_path.split("|")
+                current_parent = full_pathList[1]
+                if (current_parent == fixed_parent):
+                    same_parent_flag = True
                 else:
-                    SameParentFlag = False
-        if SameParentFlag == True:
-            print "Objects are grouped"
-            ScenePrepClass.alreadyGrouped = True
-            ScenePrepClass.GroupName = CurrentParent
-            return CurrentParent
+                    same_parent_flag = False
+        if same_parent_flag == True:
+            log.info("Objects are grouped")
+            ScenePrep.self.already_grouped = True
+            self.group_name = current_parent
+            return current_parent
         else:
-            ScenePrepClass.alreadyGrouped = False
-            print "Objects are not grouped"
+            self.already_grouped = False
+            log.info("Objects are not grouped")
             return ""
 
-    def GroupObjects(self):
-        if not ScenePrepClass.alreadyGrouped:
-            if not cmds.objExists(ScenePrepClass.GroupName):
-                cmds.group( em=True, name=ScenePrepClass.GroupName )
-            for c in ScenePrepClass.Cursel:
-                if c != ScenePrepClass.GroupName:
+    def group_objects(self):
+        if not self.already_grouped:
+            if not cmds.objExists(self.group_name):
+                cmds.group( em=True, name=self.group_name )
+            for c in self.cursel:
+                if c != self.group_name:
                     try:
-                        cmds.parent(c, ScenePrepClass.GroupName)
+                        cmds.parent(c, self.group_name)
                     except:
                         pass
-                    
-    def ExceptionObjects(self):
+
+    def exception_objects(self):
         vrayLightNodeTypes = ["VRayLightRectShape","VRayLightSphereShape","VRayLightDomeShape","VRayLightIESShape"]
-        #Deselect Vray Lights
+        # Deselect Vray Lights
         for i in vrayLightNodeTypes:
             if cmds.ls(type = i) != []:
                 transformList = cmds.listRelatives(cmds.ls(type = i), parent=True, fullPath=True)
                 cmds.select(cmds.ls(type = i), deselect = True)
                 cmds.select(transformList, deselect = True)
-            
-        #Deselect lights
+
+        # Deselect lights
         if cmds.ls(lights = True) != []:
             transformList = cmds.listRelatives(cmds.ls(lights = True), parent=True, fullPath=True)
             cmds.select(cmds.ls(lights = True), deselect = True)
             cmds.select(transformList, deselect = True)
-        
+
         if cmds.ls(type = "mentalrayIblShape") != []:
             transformList = cmds.listRelatives(cmds.ls(type = "mentalrayIblShape"), parent=True, fullPath=True)
             cmds.select(cmds.ls(type = "mentalrayIblShape"), deselect = True)
             cmds.select(transformList, deselect = True)
-        
-        #Deselect Cameras
+
+        # Deselect Cameras
         if cmds.ls(cameras = True) != []:
             transformList = cmds.listRelatives(cmds.ls(cameras = True), parent=True, fullPath=True)
             cmds.select(cmds.ls(cameras = True), deselect = True)
             cmds.select(transformList, deselect = True)
-        
-        if cmds.objExists("CMSettings"):
-            cmds.select("CMSettings", deselect = True)
+
+        if cmds.objExists(CM_SETTINGS):
+            cmds.select(CM_SETTINGS, deselect = True)
         if cmds.objExists("CMLightRig"):
             cmds.select("CMLightRig", deselect = True)
         if cmds.objExists("CMPointTarget"):
@@ -296,43 +306,43 @@ class ScenePrepClass:
             cmds.select("CMBackground", deselect = True)
         if cmds.objExists("UserLights"):
             cmds.select("UserLights", deselect = True)
-        if cmds.objExists(ScenePrepClass.GroupName+"_layer"):
-            cmds.select(ScenePrepClass.GroupName+"_layer", deselect = True)
-           
-    def ConvertCamerasToStartUp(self):
+        if cmds.objExists(self.group_name+"_layer"):
+            cmds.select(self.group_name+"_layer", deselect = True)
+
+    def convert_cameras_to_startup(self):
         #Convert the snapshot cameras to startup
         i = 0
         while(cmds.objExists( "shot_" + str(i))):
-            cmds.camera("shot_" + str(i), edit = True, startupCamera = True)      
+            cmds.camera("shot_" + str(i), edit = True, startupCamera = True)
             i = i + 1
-            
+
         #Convert the turntable cameras to startup
         i = 0
         while(cmds.objExists( "CM_Turntable_Camera_" + str(i) )):
-            cmds.camera("CM_Turntable_Camera_" + str(i), edit = True, startupCamera = True)  
+            cmds.camera("CM_Turntable_Camera_" + str(i), edit = True, startupCamera = True)
             i = i + 1
-        
+
     def GroupUserLights(self):
         transformList = []
-        
+
         vrayLightNodeTypes = ["VRayLightRectShape","VRayLightSphereShape","VRayLightDomeShape","VRayLightIESShape"]
         #Deselect Vray Lights
         for i in vrayLightNodeTypes:
             #Vray lights are locator types
             if cmds.ls(type = i) != []:
                 transformList = transformList + cmds.listRelatives(cmds.ls(type = i), parent=True, fullPath=True)
-        
+
         #Normal lights
         if cmds.ls(lights = True) != []:
             transformList = transformList + cmds.listRelatives(cmds.ls(lights = True), parent=True, fullPath=True)
-        
+
         #Mental ray IBL light
         if cmds.ls(type = "mentalrayIblShape") != []:
             transformList = transformList +  cmds.listRelatives(cmds.ls(type = "mentalrayIblShape"), parent=True, fullPath=True)
-        
+
         #CM light rig lights
         lights = ["CMKeyLight","CMFillLight","CMBackLight","CMKeySpec","CMFillSpec","CMSunLight","CMHiLight1","CMHiLight2","CMDomeLight","MREnvironment"]
-         
+
         for i in lights:
             try:transformList.remove(i)
             except:pass
@@ -342,37 +352,37 @@ class ScenePrepClass:
             except:pass
             try:transformList.remove("|CMLightRig|" + i)
             except:pass
-             
+
         if (not cmds.objExists("UserLights")) and (transformList != []):
-            cmds.group( em=True, name = "UserLights" )  
+            cmds.group( em=True, name = "UserLights" )
             try:
                 cmds.parent(transformList, "UserLights", relative=True)
             except:
-                pass    
+                pass
         elif cmds.objExists("UserLights") and (transformList != []):
             try:
                 cmds.parent(transformList, "UserLights", relative=True)
             except:
-                pass    
-    
-    def DeleteEmptyGroups(self):
+                pass
+
+    def delete_empty_groups(self):
         for a in cmds.ls():
-            if cmds.nodeType(a) == "transform":
+            if cmds.nodeType(a) == 'transform':
                 if cmds.listRelatives(a, c =True) == None:
                     cmds.delete(a)
-        print "Empty groups deleted"
-        
-    def DeleteEmptyLayers(self):
+        log.info('Empty groups deleted')
+
+    def delete_empty_layers(self):
         for a in cmds.ls():
-            if cmds.nodeType(a) == "displayLayer":
-                if a == "defaultLayer":
+            if cmds.nodeType(a) == 'displayLayer':
+                if a == 'defaultLayer':
                     continue
                 try:
                     cmds.delete(a)
                 except:
                     pass
-        print "Empty layers deleted"
-    
+        log.info('Empty layers deleted')
+
     def DeleteUnselectedGroups(self):
         cmds.select(cmds.ls(g = True),ado = True)
         UnSelGrps = cmds.ls(sl = True, transforms = True)
@@ -389,43 +399,43 @@ class ScenePrepClass:
         for u in UnSelGrps:
             GroupOrNot(u)
         print "Unselected groups deleted"
-    
-    def CreateDisplayLayers(self):
-        cmds.select(ScenePrepClass.GroupName)
-        LayerName = ScenePrepClass.GroupName + "_layer"
-        if cmds.objExists(LayerName):
-            cmds.delete(LayerName)
-        cmds.createDisplayLayer(name = LayerName , nr = False)
-        print "Primary display Layer Created"
-        
+
+    def create_display_layers(self):
+        cmds.select(self.group_name)
+        layer_name = self.group_name + '_layer'
+        if cmds.objExists(layer_name):
+            cmds.delete(layer_name)
+        cmds.createDisplayLayer(name = layer_name , nr = False)
+        log.info('Primary display Layer Created')
+
         cmds.select(cmds.listRelatives(cmds.ls(cameras = True, lights = True),parent = True))
         try:
-            cmds.select("UserLights", add = True)
+            cmds.select('UserLights', add = True)
         except:
             pass
         try:
-            cmds.select("CMLightRig", add = True)
+            cmds.select('CMLightRig', add = True)
         except:
             pass
-        LayerName = "CM Lights and Cameras"
-        if cmds.objExists(LayerName):
-            cmds.delete(LayerName)
-        cmds.createDisplayLayer(name = LayerName , nr = False)
-        print "Lights and cameras layer Created"
+        layer_name = 'CM_Lights_and_Cameras'
+        if cmds.objExists(layer_name):
+            cmds.delete(layer_name)
+        cmds.createDisplayLayer(name = layer_name , nr = False)
+        log.info('%s layer created' % layer_name)
 
     def Center(self, groupName):
         cmds.xform(groupName,cp =True)
         GroupCenter = cmds.objectCenter(groupName, gl = True)
         cmds.move(-GroupCenter[0],-GroupCenter[1],-GroupCenter[2], groupName, relative = True )
-        
+
         if cmds.objExists("CMBackground"):
             cmds.move(-GroupCenter[0],-GroupCenter[1],-GroupCenter[2], "CMBackground", relative = True )
         if cmds.objExists("UserLights"):
             cmds.move(-GroupCenter[0],-GroupCenter[1],-GroupCenter[2], "UserLights", relative = True )
-            
+
         try:cmds.makeIdentity(groupName, apply = True)
         except:print "Could not reset transforms"
-        
+
         if GroupCenter == cmds.objectCenter(groupName, gl = True):
             pass
         else:
@@ -436,7 +446,7 @@ class ScenePrepClass:
             else:
                 self.Center(groupName)
                 print "Objects are centered"
-            
+
         bbx = cmds.xform(groupName, bb = True, q = True)
         if bbx[1]<0:
             cmds.move(0,-bbx[1],0, groupName)
@@ -444,51 +454,45 @@ class ScenePrepClass:
                 cmds.move(0,-bbx[1],0, "CMBackground", relative = True )
             if cmds.objExists("UserLights"):
                 cmds.move(0,-bbx[1],0, "UserLights", relative = True )
-            
+
         else:
             pass
         try:cmds.makeIdentity(groupName, apply = True)
         except:print "Could not reset transform"
-        
-    def DeleteAnimation(self):
-        checkAnim = cmds.confirmDialog( title='Delete animation', message='The tools require that any animation on the model be deleted, press ok to delete the animation and proceed', button=['Ok','Cancel'], defaultButton='Ok', cancelButton='Cancel', dismissString='Cancel' )
-        if checkAnim == 'Cancel':
-            sys.exit()
-        elif checkAnim == 'ok':
-            cmds.cutKey(cmds.select(cmds.ls(geometry = True), ado=True, hi = True), s=True)#delete key command
-    
+
     def CreateAnimation(self):
-        import maya.mel as mel
-        # get the up axis:
+        # Get the up axis
         axis =  cmds.upAxis(query=True, axis=True)
         cmds.currentTime( 0 )
-        
-        if axis == 'y':     
+
+        if axis == 'y':
             cmds.setKeyframe( cmds.getAttr("CMSettings.ModelName"), attribute='rotateY', itt = 'linear', ott = 'linear' )
             cmds.currentTime( 36 )
             cmds.rotate( 0, 360, 0, cmds.getAttr("CMSettings.ModelName"))
             cmds.setKeyframe( cmds.getAttr("CMSettings.ModelName"), attribute='rotateY', itt = 'linear', ott = 'linear' )
-            
-        if axis == 'z':     
+
+        if axis == 'z':
             cmds.setKeyframe( cmds.getAttr("CMSettings.ModelName"), attribute='rotateZ', itt = 'linear', ott = 'linear' )
             cmds.currentTime( 36 )
             cmds.rotate(0, 0, 360, cmds.getAttr("CMSettings.ModelName"))
             cmds.setKeyframe( cmds.getAttr("CMSettings.ModelName"), attribute='rotateZ', itt = 'linear', ott = 'linear' )
-        
-        
+
+
         cmds.currentTime( 0 )
         mel.eval("setPlaybackRangeToMinMax;")
-    
-    def SetResGate(self):
-        #Set the resolution gate in all viewports
-        for i in range(1,5):
-            camera = cmds.modelEditor ( "modelPanel" + str(i), q = True, camera = True )
-            cmds.camera( camera, edit = True, displayFilmGate = False, displayResolution = True, overscan = 1.3)
-            cmds.camera( camera, edit = True, filmFit = "fill", displayGateMask = False)
-    
+
+    def set_res_gate(self):
+        """
+        Set the resolution gate in all viewports
+        """
+        for i in range(1, 5):
+            camera = cmds.modelEditor('modelPanel' + str(i), q=True, camera=True)
+            cmds.camera(camera, edit=True, displayFilmGate=False, displayResolution=True, overscan=1.3)
+            cmds.camera(camera, edit=True, filmFit='fill', displayGateMask=False)
+
     def ApplySmooth(self):
         cmds.displaySmoothness(divisionsU = 0, divisionsV = 0, pointsWire = 4, pointsShaded = 1, polygonObject = 1)
-        
+
         for mesh in cmds.listRelatives(cmds.getAttr("CMSettings.ModelName"), allDescendents = True, type = "mesh"):
             #If the mesh is an intermediate object ignore it
             try:
@@ -496,27 +500,28 @@ class ScenePrepClass:
                     continue;
             except:
                 pass
-            
+
             #Try to delete smooth on the current mesh
             try:
                 cmds.setAttr(mesh + "Smooth.divisions", 0)
                 cmds.delete(mesh + "Smooth")
             except:pass
-            
+
             #Try to apply smooth on the mesh
             try:
                 Smooth = cmds.polySmooth(mesh, dv = 0)
                 cmds.rename(Smooth, mesh+"Smooth")
             except:pass
-            
-    def CreateProjectDirectory(self):
-        #While the user doesn't create a unique and valid project keep prompting him to do so
+
+    def create_project_directory(self):
+
+        # While the user doesn't create a unique and valid project keep prompting him to do so
         while True:
-            #Select the output directory 
-            ScenePrepClass.OutputDir = ""
+            # Select the output directory
+            self.output_dir = ''
             try:
-                ScenePrepClass.OutputDir = cmds.fileDialog2(fm = 3, fileFilter = None, ds = 2, cap = "Please select a CM project directory")[0]
-            except:      
+                self.output_dir = cmds.fileDialog2(fm = 3, fileFilter = None, ds = 2, cap = "Please select a CM project directory")[0]
+            except:
                 print "No directory specified"
                 #If no output directory is specified delete everything and exit
                 self.Exit()

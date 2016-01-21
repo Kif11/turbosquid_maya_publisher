@@ -402,7 +402,7 @@ class ShaderClass:
         cmds.connectAttr((material + '.outColor'),(SG + '.surfaceShader'),f=1)
         
         cmds.shadingNode("file", asTexture = True, name = "CheckerMap" )
-        cmds.setAttr("CheckerMap.fileTextureName", os.path.expanduser('~/maya/Turbosquid/CheckMate Tools For Maya/CM_Tools/') + "ash_uvgrid.jpg", type = "string")
+        cmds.setAttr("CheckerMap.fileTextureName", os.environ['CM_TOOLS'] + "ash_uvgrid.jpg", type = "string")
        
         cmds.connectAttr(  "CheckerMap.outColor", "UVShader.color", force = True)
     

@@ -8,7 +8,7 @@ class RWSToolClass:
     
     def __init__(self):
         print "Initializing RWS tool"
-        self.Path = os.path.expanduser('~/maya/Turbosquid/CheckMate Tools For Maya/CM_Tools/') + "RWS Data/"
+        self.Path = os.environ['CM_TOOLS'] + "RWS Data/"
         self.ParentSelection = ""
         self.ChildSelection = ""
     
